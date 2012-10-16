@@ -1,0 +1,9 @@
+#Do not commit extjs files
+extjs
+
+#Do not commit eclipse files
+.project
+.pydevproject
+
+#Do not commit .pyc files
+*.pyc
