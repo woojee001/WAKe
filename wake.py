@@ -58,6 +58,7 @@ if __name__ == '__main__':
                 pass
             
             sleep(10) #Ctrl+C does not "break" the join wait
+            
     except KeyboardInterrupt:
         if not arguments.no_gui:
             #Stop UI
