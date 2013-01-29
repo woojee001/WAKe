@@ -9,6 +9,7 @@ __version__ = 0.1
 from argparse import ArgumentParser
 from os.path import dirname, abspath
 from sys import argv
+from threading import Event
 from time import sleep
 
 from gui.wake_gui import WakeGui
@@ -17,12 +18,12 @@ def parseArgs(arguments):
     '''
         Define available command line arguments
     '''
-    parser = ArgumentParser(prog='WAKe', description='Python blacklist/whitelist Web Application Firewall (WAF)')
+    parser = ArgumentParser(prog='WAKe', description='Blacklist/whitelist Web Application Firewall (WAF)')
     
     parser.add_argument('-d', '--debug', action='store_true', help='Activate debug mode (relevant only for development)')
     parser.add_argument('--no-core', action='store_true', dest='no_core', help='Do not start the WAKe core (offline configuration)')
     parser.add_argument('--no-gui', action='store_true', dest='no_gui', help='Do not start the GUI')
-    parser.add_argument('-p', '--port', type=int, dest='ui_port', action='store', default=8080, help='TCP port on which the GUI will be available (default: 6666')
+    parser.add_argument('-p', '--port', type=int, dest='ui_port', action='store', default=3333, help='TCP port on which the GUI will be available (default: 3333')
     
     return parser.parse_args(arguments)
 
@@ -44,20 +45,20 @@ if __name__ == '__main__':
         pass
     
     #Run WAKe
-    running = True
+    running = Event()
     try:
-        while running:
+        while not running.isSet():
             if not arguments.no_gui:
                 #Check if UI thread exited
                 wake_gui.join(1)
                 if not wake_gui.is_alive():
-                    running = False
+                    running.set()
                     
             if not arguments.no_core:
                 #Check if core thread exited
                 pass
             
-            sleep(10) #Ctrl+C does not "break" the join wait
+            running.wait(10) #Ctrl+C does not "break" the join()
             
     except KeyboardInterrupt:
         if not arguments.no_gui:

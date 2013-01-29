@@ -9,6 +9,7 @@ __version__ = 0.1
 import cherrypy
 import json
 import multiprocessing
+import os
 
 from os.path import join
 
@@ -100,6 +101,10 @@ class WakeGui(multiprocessing.Process):
         
         #Upload configuration
         cherrypy.config.update(siteconf)
+        
+        #Use HTTPS
+        cherrypy.server.ssl_certificate = './gui/conf/ssl/server.crt'
+        cherrypy.server.ssl_private_key = './gui/conf/ssl/server.key'
         
         #Create server and application
         cherrypy.tree.mount(WakeGuiApp(self._BASE_DIR, self._DEBUG), '/', appconf)
