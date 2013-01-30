@@ -17,3 +17,26 @@
 	color: #4D79FF;
 	font-size: 14px;
 }
+
+#footer {
+    background: #000000;
+    padding-top: 8px;
+    padding-right: 10px;
+    font-size: 9px;
+    color: #FFFFFF;
+    height: 30px;
+    float: right;
+}
+
+#footer a {
+    color: #4D79FF;
+}
+
+#logo {
+    padding: 10px;
+    height: 100%;
+}
+
+.connect {
+    background-image: url("/resources/images/icons/Application-run.gif");
+}

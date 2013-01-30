@@ -5,6 +5,7 @@ Ext.application({
     
     controllers: [
     	'Header',
+    	'Footer',
     	'Authentication',
     ],
 
@@ -19,7 +20,11 @@ Ext.application({
             	{
                     xtype: 'wake-authentication',
                     id: 'wake-authentication'
-                }
+                },
+                {
+                    xtype: 'wake-footer',
+                    id: 'wake-footer'
+                },
             ]
         });
     }

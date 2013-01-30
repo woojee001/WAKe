@@ -4,7 +4,9 @@ Ext.define('WAKe.view.Authentication.Form.Username', {
     
     id: 'username',
     name: 'username',
-    fieldLabel: 'Username'
+    fieldLabel: 'Username',
+    
+    allowBlank: false
 });
 
 Ext.define('WAKe.view.Authentication.Form.Password', {
@@ -14,7 +16,9 @@ Ext.define('WAKe.view.Authentication.Form.Password', {
     id: 'password',
     name: 'password',
     fieldLabel: 'Password',
-    inputType: 'password'
+    inputType: 'password',
+    
+    allowBlank: false
 });
 
 Ext.define('WAKe.view.Authentication.Form.Button', {
@@ -24,16 +28,22 @@ Ext.define('WAKe.view.Authentication.Form.Button', {
     action: 'login',
     
     text: 'Log in',
-    width: 70
+    padding: '5 10 5 10',
+    iconCls: 'connect',
+    
+    formBind: true,
+    enabled: false
 });
 
 Ext.define('WAKe.view.Authentication.Form', {
     extend: 'Ext.form.Panel',
     alias: 'widget.auth-form',
+    id: 'auth-form',
     
     region: 'center',
     padding: '25 10 10 10',
     border: false,
+    monitorValid: true,
     
     items: [
         {
@@ -59,7 +69,8 @@ Ext.define('WAKe.view.Authentication.Logo', {
     split: true,
     width: 150,
     
-    border: false
+    border: false,
+    html: '<img id="logo" src="/resources/images/logo.png"/>'
 });
 
 Ext.define('WAKe.view.Authentication', {
@@ -72,6 +83,7 @@ Ext.define('WAKe.view.Authentication', {
     autoShow: true,
     closable: false,
     resizable: false,
+    draggable: false,
     layout: 'border',
     
     padding: 6,
