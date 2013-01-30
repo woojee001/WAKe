@@ -2,16 +2,18 @@
     Web Application Keeper (WAKe) GUI
     Powers a GUI for administration and configuration purpose
 '''
-
 __author__ = 'Aurelien CROZATIER'
 __version__ = 0.1
 
 import cherrypy
+import hashlib
 import json
 import multiprocessing
-import os
 
 from os.path import join
+
+from database.setup_db import setupGuiDatabase
+from database.db_connector import GuiDatabaseConnector
 
 def handleUnexpectedError():
     '''
@@ -33,7 +35,7 @@ class WakeGuiApp():
     '''
         Class that defines the structure of the UI application and the underlying operations
     '''
-    def __init__(self, BASE_DIR, DEBUG):
+    def __init__(self, BASE_DIR, DEBUG, db_connector):
         '''
             Configure application
         '''
@@ -44,6 +46,7 @@ class WakeGuiApp():
                                     'request.error_response': handleUnexpectedError,
                                     'error_page.default': handleExpectedError
                                 }
+        self._db_connector = db_connector
         return
     
     @cherrypy.expose
@@ -64,6 +67,18 @@ class WakeGuiApp():
         except:
             html = 'NO HEADER'
         return '{"success": true, "html": %s}' %(json.dumps(html),)
+    
+    @cherrypy.expose
+    def connect(self, username='', password=''):
+        '''
+            Authenticate user
+        '''
+        connected = self._db_connector.execute(request='''SELECT changed FROM users WHERE username=? AND password=?''',
+                                               attributes=(username, hashlib.sha512(password).hexdigest(),)
+                                               )
+        if connected:
+            return '{"success": true}'
+        return '{"success": false}'
 
 class WakeGui(multiprocessing.Process):
     '''
@@ -74,7 +89,8 @@ class WakeGui(multiprocessing.Process):
             Set needed variables
         '''
         multiprocessing.Process.__init__(self, group=group, target=target, name=name)
-        self._BASE_DIR = join(args[0], 'gui', 'www')
+        self._PROJECT_DIR = args[0]
+        self._BASE_DIR = join(self._PROJECT_DIR, 'gui', 'www')
         self._PORT = args[1]
         self._DEBUG = args[2]
         return
@@ -83,6 +99,11 @@ class WakeGui(multiprocessing.Process):
         '''
             Create, configure and start UI web server & application
         '''
+        #Setup GUI database and connector
+        setupGuiDatabase(self._PROJECT_DIR)
+        db_connector = GuiDatabaseConnector(self._PROJECT_DIR)
+        
+        #Setup web app. configuration
         appconf = { 
             '/': {'tools.staticdir.root': self._BASE_DIR},
             '/app': {'tools.staticdir.on': True, 'tools.staticdir.dir': 'app'},
@@ -107,7 +128,7 @@ class WakeGui(multiprocessing.Process):
         cherrypy.server.ssl_private_key = './gui/conf/ssl/server.key'
         
         #Create server and application
-        cherrypy.tree.mount(WakeGuiApp(self._BASE_DIR, self._DEBUG), '/', appconf)
+        cherrypy.tree.mount(WakeGuiApp(self._BASE_DIR, self._DEBUG, db_connector), '/', appconf)
         
         #Start CherryPy server
         cherrypy.server.start() 

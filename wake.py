@@ -1,6 +1,6 @@
 '''
     Web Application Keeper (WAKe)
-    Python blacklist/whitelist Web Application Firewall (WAF) 
+    Blacklist/whitelist Web Application Firewall (WAF) 
 '''
 
 __author__ = 'Aurelien CROZATIER'
@@ -45,20 +45,19 @@ if __name__ == '__main__':
         pass
     
     #Run WAKe
-    running = Event()
+    stop_running = Event()
     try:
-        while not running.isSet():
+        while not stop_running.isSet():
             if not arguments.no_gui:
                 #Check if UI thread exited
-                wake_gui.join(1)
                 if not wake_gui.is_alive():
-                    running.set()
+                    stop_running.set()
                     
             if not arguments.no_core:
                 #Check if core thread exited
                 pass
             
-            running.wait(10) #Ctrl+C does not "break" the join()
+            stop_running.wait(10) #Ctrl+C does not "break" the join()
             
     except KeyboardInterrupt:
         if not arguments.no_gui:
