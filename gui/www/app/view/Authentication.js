@@ -29,7 +29,7 @@ Ext.define('WAKe.view.Authentication.Form.Button', {
     
     text: 'Log in',
     padding: '5 10 5 10',
-    iconCls: 'connect',
+    iconCls: 'login',
     
     formBind: true,
     enabled: false

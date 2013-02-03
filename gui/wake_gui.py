@@ -82,7 +82,8 @@ class WakeGuiApp():
                                         'control_token': control,
                                         'expiration_time': -1,
                                         'username': None,
-                                        'creation_time': time.time()
+                                        'creation_time': time.time(),
+                                        'website_id': None
                                       }
         self._user_sessions_lock.release()
         
@@ -229,7 +230,11 @@ class WakeGuiApp():
                 
         # Check if user is authenticated
         elif session_status['authenticated']:
-            file_to_load = join(self._BASE_DIR, 'wake.html')
+            # Check if web site configuration was selected
+            if self._user_sessions[wake_session_id]['website_id']:
+                file_to_load = join(self._BASE_DIR, 'select.html')
+            else:    
+                file_to_load = join(self._BASE_DIR, 'wake.html')
         
         # Unauthenticated user
         else:

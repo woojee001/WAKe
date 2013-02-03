@@ -37,6 +37,8 @@
     height: 100%;
 }
 
-.connect {
-    background-image: url("/resources/images/icons/Application-run.gif");
+.login {
+    background-image: url("/resources/images/icons/login.svg");
+    background-size: 16px 16px;
+    background-repeat:no-repeat;
 }
