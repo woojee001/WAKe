@@ -1,41 +1,26 @@
-function confirmDuplicate(btn){
-    console.dir(btn);
-    if(btn == 'yes'){
-        Ext.Ajax.request({
-            url: 'confirmDuplicate',
-            success: function(response){
-                window.location = '/';
-            },
-            failure: function(response){
-                alert('ERROR')
-            }
-        });
-    }
-}
-
-Ext.define('WAKe.controller.Authentication', {
+Ext.define('WAKe.controller.ChangePassword', {
     extend: 'Ext.app.Controller',
     
     views: [
-    	'Authentication',
+        'ChangePassword',
     ],
     
     init: function() {
         this.control({
-            'button[action=login]': {
+            'button[action=change-password]': {
                 click: function(){
-                    var form = Ext.getCmp('auth-form').getForm();
+                    var form = Ext.getCmp('change-password-form').getForm();
                     if (form.isValid()){
                         form.submit({
-                            url: 'connect',
+                            url: 'changeDefaultPassword',
                             success: function(form, action) {
                                 console.dir(action);
-                                if(!action.result.duplicate){
+                                if(action.result.duplicate || !action.result.msg){
                                     window.location = '/';
                                 }
                                 else{
                                     Ext.Msg.show({
-                                        title:'DUPLICATE SESSION',
+                                        title:'NO MATCH',
                                         buttons: Ext.Msg.YESNO,
                                         msg: action.result.msg,
                                         icon: Ext.Msg.WARNING,

@@ -42,3 +42,9 @@
     background-size: 16px 16px;
     background-repeat:no-repeat;
 }
+
+.change-pwd {
+    background-image: url("/resources/images/icons/change-pwd.svg");
+    background-size: 16px 16px;
+    background-repeat:no-repeat;
+}

@@ -110,6 +110,7 @@ class WakeGuiApp():
                   }
         
         if not no_standard_checks:
+            
             # Check if session exists
             if not cookie.value[0:32] in self._user_sessions:
                 status['exists'] = False
@@ -117,7 +118,8 @@ class WakeGuiApp():
             
             # Check if session expired
             if 'expiration_time' in self._user_sessions[cookie.value[0:32]]:
-                if time.time() > self._user_sessions[cookie.value[0:32]]['expiration_time'] + self._SESSION_DURATION:
+                if time.time() > self._user_sessions[cookie.value[0:32]]['expiration_time'] + self._SESSION_DURATION and \
+                        self._user_sessions[cookie.value[0:32]]['expiration_time'] > 0:
                     self._user_sessions_lock.acquire()
                     del self._user_sessions[cookie.value[0:32]]
                     self._user_sessions_lock.release()
@@ -128,7 +130,7 @@ class WakeGuiApp():
             sessions_to_del = []
             self._user_sessions_lock.acquire()
             for session_id in self._user_sessions:
-                if 'expiration_time' in self._user_sessions[session_id]:
+                if 'expiration_time' in self._user_sessions[session_id] and self._user_sessions[session_id]['expiration_time'] > 0:
                     if time.time() > self._user_sessions[session_id]['expiration_time'] + self._SESSION_DURATION:
                         sessions_to_del.append(session_id)
                 elif time.time() > self._user_sessions[session_id]['creation_time'] + self._UNAUTH_SESSION_DURATION:
@@ -180,19 +182,12 @@ class WakeGuiApp():
         # Get session cookie
         cookie = self._getSessionCookie(request)
         if not cookie:
-            cherrypy.response.status = 302
-            cherrypy.response.headers['Location'] = '/'
-            return
+            return None, None
         
-        # Check session
+        # Check session status
         session_status = self._checkSessionId(cookie, request, no_standard_checks=no_standard_checks,
                                               check_duplicate=check_duplicate, 
                                               static_username=static_username, set_duplicate=set_duplicate)
-        if not session_status['exists'] or session_status['hijacked'] or \
-                (session_status['duplicate'] and 'duplicate' in self._user_sessions[cookie.value[0:32]]):
-            cherrypy.response.status = 302
-            cherrypy.response.headers['Location'] = '/'
-            return
         
         return cookie.value[0:32], session_status
     
@@ -213,9 +208,6 @@ class WakeGuiApp():
         if not session_status['exists']:
             # Set session ID
             self._setSessionCookie(cherrypy.request)
-        # TODO: Delete this
-        print session_status
-        print self._user_sessions
         
         # Check if session ID was hijacked
         if session_status['hijacked']:
@@ -230,8 +222,10 @@ class WakeGuiApp():
                 
         # Check if user is authenticated
         elif session_status['authenticated']:
-            # Check if web site configuration was selected
-            if self._user_sessions[wake_session_id]['website_id']:
+            # Check if default pwd was changed and then web site configuration was selected
+            if not self._user_sessions[wake_session_id]['pwd_changed']:
+                file_to_load = join(self._BASE_DIR, 'change_pwd.html')
+            elif not self._user_sessions[wake_session_id]['website_id']:
                 file_to_load = join(self._BASE_DIR, 'select.html')
             else:    
                 file_to_load = join(self._BASE_DIR, 'wake.html')
@@ -263,8 +257,12 @@ class WakeGuiApp():
         '''
         Authenticate user
         '''
-        # Check session status & get session cookie
+        # Get session status & session cookie
         wake_session_id, session_status = self._checkSession(cherrypy.request)
+        
+        # Check status
+        if session_status['hijacked'] or not session_status['exists']:
+            return '{"success": false}'
         
         connected = self._db_connector.execute(request='''SELECT changed FROM users WHERE username=? AND password=?''',
                                                attributes=(username, hashlib.sha512(password).hexdigest(),)
@@ -275,11 +273,13 @@ class WakeGuiApp():
             wake_session_id, session_status = self._checkSession(cherrypy.request, no_standard_checks=True,
                                                                  check_duplicate=True, static_username=username)
             
+            self._user_sessions[wake_session_id]['pwd_changed'] = connected[0][0]  # Get info about default pwd change
+            
             if session_status['duplicate']:
                 self._user_sessions_lock.acquire()
                 self._user_sessions[wake_session_id]['duplicate_username'] = username
                 self._user_sessions_lock.release()
-                return '{"success": true, "duplicate": true, "msg": "A previous session already exists with the username you specified. Do you wish to overwritte it ?"}'
+                return '{"success": true, "duplicate": true, "msg": "An older session with the username you specified already exists. Do you wish to overwritte it ?"}'
             
             self._user_sessions_lock.acquire()
             self._user_sessions[wake_session_id]['username'] = username
@@ -293,8 +293,14 @@ class WakeGuiApp():
         '''
         Confirm overwrite of a duplicate session
         '''
-        # Check session status & get session cookie
-        wake_session_id, _ = self._checkSession(cherrypy.request)
+        # Get session status & session cookie
+        wake_session_id, session_status = self._checkSession(cherrypy.request)
+        
+        # Check status
+        if session_status['duplicate'] or session_status['hijacked'] or not session_status['exists']:
+            return '{"success": true}'
+        
+        # Set duplicate
         _, _ = self._checkSession(cherrypy.request, no_standard_checks=True, check_duplicate=True, 
                                   static_username=self._user_sessions[wake_session_id]['duplicate_username'], set_duplicate=True)
         
@@ -303,10 +309,30 @@ class WakeGuiApp():
         del self._user_sessions[wake_session_id]['duplicate_username']
         self._user_sessions_lock.release()
         
-        print self._user_sessions
         return '{"success": true}'
+    
+    @cherrypy.expose
+    def changeDefaultPassword(self, password1, password2):
+        '''
+        Change default password for admin account
+        '''
+        # Get session status & session cookie
+        wake_session_id, session_status = self._checkSession(cherrypy.request)
+        print session_status
         
-
+        # Check status
+        if session_status['duplicate'] or session_status['hijacked'] or not session_status['exists']:
+            return '{"success": true, "duplicate": true}'
+        
+        # Check if value was submitted and if both match
+        if not password1 or password1 != password2:
+            return '{"success": false, "duplicate": false, "msg": "The specified values do not match"}'
+        
+        # Change password
+        self._user_sessions[wake_session_id]['pwd_changed'] = 1
+        
+        return '{"success": true}'
+            
 class WakeGui(multiprocessing.Process):
     '''
     UI starter
@@ -338,6 +364,9 @@ class WakeGui(multiprocessing.Process):
             '/resources': {'tools.staticdir.on': True, 'tools.staticdir.dir': 'resources'},
             '/favicon.ico': {'tools.staticfile.on': True, 'tools.staticfile.filename': join(self._BASE_DIR, 'favicon.ico')},
             '/login.js': {'tools.staticfile.on': True, 'tools.staticfile.filename': join(self._BASE_DIR, 'login.js')},
+            '/change_pwd.js': {'tools.staticfile.on': True, 'tools.staticfile.filename': join(self._BASE_DIR, 'change_pwd.js')},
+            '/select.js': {'tools.staticfile.on': True, 'tools.staticfile.filename': join(self._BASE_DIR, 'select.js')},
+            '/wake.js': {'tools.staticfile.on': True, 'tools.staticfile.filename': join(self._BASE_DIR, 'wake.js')},
         }
         
         siteconf = {
