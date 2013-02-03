@@ -1,3 +1,18 @@
+function confirmDuplicate(btn){
+    console.dir(btn);
+    if(btn == 'yes'){
+        Ext.Ajax.request({
+            url: 'confirmDuplicate',
+            success: function(response){
+                window.location = '/';
+            },
+            failure: function(response){
+                alert('ERROR')
+            }
+        });
+    }
+}
+
 Ext.define('WAKe.controller.Authentication', {
     extend: 'Ext.app.Controller',
     
@@ -14,7 +29,19 @@ Ext.define('WAKe.controller.Authentication', {
                         form.submit({
                             url: 'connect',
                             success: function(form, action) {
-                               window.location = '/';
+                                console.dir(action);
+                                if(!action.result.duplicate){
+                                    window.location = '/';
+                                }
+                                else{
+                                    Ext.Msg.show({
+                                        title:'DUPLICATE SESSION',
+                                        buttons: Ext.Msg.YESNO,
+                                        msg: action.result.msg,
+                                        icon: Ext.Msg.WARNING,
+                                        fn: confirmDuplicate
+                                   });
+                                }
                             },
                             failure: function(form, action) {
                                 switch (action.failureType) {
@@ -30,7 +57,13 @@ Ext.define('WAKe.controller.Authentication', {
                                         });
                                         break;
                                     case Ext.form.action.Action.SERVER_INVALID:
-                                       Ext.Msg.alert('Failure', action.result.msg);
+                                        Ext.Msg.show({
+                                            title:'ERROR',
+                                            buttons: Ext.Msg.OK,
+                                            msg: action.result.msg,
+                                            icon: Ext.Msg.ERROR
+                                        });
+                                        break;
                                }
                             }
                         });
@@ -38,5 +71,5 @@ Ext.define('WAKe.controller.Authentication', {
                 }
             }
         });
-    },
+    }
 });

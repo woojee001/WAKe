@@ -5,5 +5,5 @@ Ext.define('WAKe.view.Footer' ,{
     region: 'south',
     height: 30,
     bodyStyle: 'background: #000000',
-    html: '<div id="footer">Credits: <a href="http://www.axialis.com/free/icons">Icons</a> by <a href="http://www.axialis.com">Axialis Team</a></div>'
+    html: '<div id="footer">Powered by <a href="https://github.com/acrozatier">Aur&eacute;lien CROZATIER</a></div>'
 });

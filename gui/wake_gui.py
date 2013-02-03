@@ -1,6 +1,6 @@
 '''
-    Web Application Keeper (WAKe) GUI
-    Powers a GUI for administration and configuration purpose
+Web Application Keeper (WAKe) GUI
+Powers up a GUI for administration and configuration purpose
 '''
 __author__ = 'Aurelien CROZATIER'
 __version__ = 0.1
@@ -9,15 +9,19 @@ import cherrypy
 import hashlib
 import json
 import multiprocessing
+import random
+import threading
+import time
 
 from os.path import join
 
 from database.setup_db import setupGuiDatabase
 from database.db_connector import GuiDatabaseConnector
 
+
 def handleUnexpectedError():
     '''
-        Custom error handler, do not display error message
+    Custom error handler, do not display error message
     '''
     cherrypy.response.status = 302
     cherrypy.response.headers['Location'] = '/'
@@ -25,7 +29,7 @@ def handleUnexpectedError():
 
 def handleExpectedError(status, message, traceback, version):
     '''
-        Custom HTTP error handler, do not display error message
+    Custom HTTP error handler, do not display error message
     '''
     cherrypy.response.status = 302
     cherrypy.response.headers['Location'] = '/'
@@ -33,60 +37,278 @@ def handleExpectedError(status, message, traceback, version):
 
 class WakeGuiApp():
     '''
-        Class that defines the structure of the UI application and the underlying operations
+    Class that defines the structure of the UI application and the underlying operations
     '''
     def __init__(self, BASE_DIR, DEBUG, db_connector):
         '''
-            Configure application
+        Configure application
         '''
         self._BASE_DIR = BASE_DIR
         self._DEBUG = DEBUG
-        if not self._DEBUG: #If not in debug mode, activate custom error handlers
+        if not self._DEBUG:  # If not in debug mode, activate custom error handlers
             self._cp_config =   {
                                     'request.error_response': handleUnexpectedError,
                                     'error_page.default': handleExpectedError
                                 }
         self._db_connector = db_connector
+        self._user_sessions = {}
+        self._user_sessions_lock = threading.Lock()
+        self._SESSION_DURATION = 3600
+        self._UNAUTH_SESSION_DURATION = 600
         return
+    
+    def _getSessionCookie(self, request):
+        '''
+        Return the WAKe_SESSION_ID
+        '''
+        try:
+            return request.cookie['WAKe_SESSION_ID']
+        except:
+            return None
+    
+    def _generateSessionId(self, request):
+        '''
+        Set WAKe_SESSION_ID value + control
+        '''
+        value = hashlib.md5('{0:s}{1:s}{2:s}'.format(str(time.time() + random.randint(1, 1000000000)),
+                                                     request.headers['User-Agent'],
+                                                     request.remote.ip)).hexdigest()
+        control = hashlib.md5('{0:s}{1:s}'.format(request.headers['User-Agent'],
+                                                  request.remote.ip)).hexdigest()
+        
+        # Memorize session
+        self._user_sessions_lock.acquire()
+        self._user_sessions[value] = {
+                                        'control_token': control,
+                                        'expiration_time': -1,
+                                        'username': None,
+                                        'creation_time': time.time()
+                                      }
+        self._user_sessions_lock.release()
+        
+        return '{0:s}{1:s}'.format(value, control,)
+    
+    def _setSessionCookie(self, request):
+        '''
+        Set WAKe_SESSION_ID
+        '''
+        cookie_list = cherrypy.response.cookie
+        cookie_list['WAKe_SESSION_ID'] = self._generateSessionId(request)
+        return cookie_list['WAKe_SESSION_ID']
+    
+    def _checkSessionId(self, cookie, request, no_standard_checks=False, check_duplicate=False, static_username='', set_duplicate=False):
+        '''
+        Check status of the specified session ID
+        '''
+        status = {
+                    'exists': True,
+                    'expired': False,
+                    'duplicate': False,
+                    'hijacked': False,
+                    'authenticated': False
+                  }
+        
+        if not no_standard_checks:
+            # Check if session exists
+            if not cookie.value[0:32] in self._user_sessions:
+                status['exists'] = False
+                return status
+            
+            # Check if session expired
+            if 'expiration_time' in self._user_sessions[cookie.value[0:32]]:
+                if time.time() > self._user_sessions[cookie.value[0:32]]['expiration_time'] + self._SESSION_DURATION:
+                    self._user_sessions_lock.acquire()
+                    del self._user_sessions[cookie.value[0:32]]
+                    self._user_sessions_lock.release()
+                    status['expired'] = True
+                    return status
+                
+            # Clean sessions list
+            sessions_to_del = []
+            self._user_sessions_lock.acquire()
+            for session_id in self._user_sessions:
+                if 'expiration_time' in self._user_sessions[session_id]:
+                    if time.time() > self._user_sessions[session_id]['expiration_time'] + self._SESSION_DURATION:
+                        sessions_to_del.append(session_id)
+                elif time.time() > self._user_sessions[session_id]['creation_time'] + self._UNAUTH_SESSION_DURATION:
+                    sessions_to_del.append(session_id)
+            for session_id in sessions_to_del:
+                del self._user_sessions[session_id]
+            self._user_sessions_lock.release()
+            
+            # Check if cookie was tampered/hijacked
+            if cookie.value[32:] != self._user_sessions[cookie.value[0:32]]['control_token']:
+                status['hijacked'] = True
+                self._user_sessions_lock.acquire()
+                del self._user_sessions[cookie.value[0:32]]  # Remove tampered/hijacked session
+                self._user_sessions_lock.release()
+                return status
+
+        # Check if session is duplicated and if user is authenticated
+        if check_duplicate:
+            # Specific check for "connect" action
+            self._user_sessions_lock.acquire()
+            for session_id in self._user_sessions:
+                if session_id != cookie.value[0:32]:
+                    if static_username == self._user_sessions[session_id]['username']:
+                        # Check if a session already exists with a specific username
+                        status['duplicate'] = True
+                        if set_duplicate:
+                            self._user_sessions[session_id]['duplicate'] = 1
+                        self._user_sessions_lock.release()
+                        return status
+            self._user_sessions_lock.release()
+            
+        elif self._user_sessions[cookie.value[0:32]]['username']:
+            # Standard check if username exists
+            self._user_sessions_lock.acquire()
+            if 'duplicate' in self._user_sessions[cookie.value[0:32]]:
+                status['duplicate'] = True
+                self._user_sessions_lock.release()
+                return status
+            self._user_sessions_lock.release()
+            if self._user_sessions[cookie.value[0:32]]['username']:
+                status['authenticated'] = True
+        
+        return status
+    
+    def _checkSession(self, request, no_standard_checks=False, check_duplicate=False, static_username='', set_duplicate=False):
+        '''
+        Check if we can proceed or not
+        '''
+        # Get session cookie
+        cookie = self._getSessionCookie(request)
+        if not cookie:
+            cherrypy.response.status = 302
+            cherrypy.response.headers['Location'] = '/'
+            return
+        
+        # Check session
+        session_status = self._checkSessionId(cookie, request, no_standard_checks=no_standard_checks,
+                                              check_duplicate=check_duplicate, 
+                                              static_username=static_username, set_duplicate=set_duplicate)
+        if not session_status['exists'] or session_status['hijacked'] or \
+                (session_status['duplicate'] and 'duplicate' in self._user_sessions[cookie.value[0:32]]):
+            cherrypy.response.status = 302
+            cherrypy.response.headers['Location'] = '/'
+            return
+        
+        return cookie.value[0:32], session_status
     
     @cherrypy.expose
     def index(self):
+        '''
+        WAKe root page
+        '''
+        # Get session cookie
+        cookie = self._getSessionCookie(cherrypy.request)
+        if not cookie:
+            # Set session ID
+            cookie = self._setSessionCookie(cherrypy.request)
+        wake_session_id = cookie.value[0:32]
+        
+        # Check session status
+        session_status = self._checkSessionId(cookie, cherrypy.request)
+        if not session_status['exists']:
+            # Set session ID
+            self._setSessionCookie(cherrypy.request)
+        # TODO: Delete this
+        print session_status
+        print self._user_sessions
+        
+        # Check if session ID was hijacked
+        if session_status['hijacked']:
+            file_to_load = join(self._BASE_DIR, 'login_hijacked.html')
+            
+        # Check if duplicate session
+        elif session_status['duplicate']:
+            file_to_load = join(self._BASE_DIR, 'login_duplicate.html')
+            self._user_sessions_lock.acquire()
+            del self._user_sessions[wake_session_id]
+            self._user_sessions_lock.release()
+                
+        # Check if user is authenticated
+        elif session_status['authenticated']:
+            file_to_load = join(self._BASE_DIR, 'wake.html')
+        
+        # Unauthenticated user
+        else:
+            file_to_load = join(self._BASE_DIR, 'login.html')
+        
+        # Display selected page
         try:
-            html = ''.join(open(join(self._BASE_DIR, 'login.html'), 'r').readlines())
+            html = ''.join(open(file_to_load, 'r').readlines())
         except:
-            html = ''
+            html = 'ERROR LOADING PAGE CONTENT'
         return html
     
     @cherrypy.expose
     def getPageHeader(self):
         '''
-            Return HTML content for the page "Header" zone
+        Return HTML content for the page "Header" zone
         '''
         try:
             html = u''.join(open(join(self._BASE_DIR, 'resources', 'html', 'unauthenticated_header.html')).readlines())
         except:
             html = 'NO HEADER'
-        return '{"success": true, "html": %s}' %(json.dumps(html),)
+        return '{{"success": true, "html": {0:s}}}'.format(json.dumps(html))
     
     @cherrypy.expose
     def connect(self, username='', password=''):
         '''
-            Authenticate user
+        Authenticate user
         '''
+        # Check session status & get session cookie
+        wake_session_id, session_status = self._checkSession(cherrypy.request)
+        
         connected = self._db_connector.execute(request='''SELECT changed FROM users WHERE username=? AND password=?''',
                                                attributes=(username, hashlib.sha512(password).hexdigest(),)
                                                )
+        # Return connect result
         if connected:
-            return '{"success": true}'
-        return '{"success": false}'
+            # Re-check session status (for duplicate)
+            wake_session_id, session_status = self._checkSession(cherrypy.request, no_standard_checks=True,
+                                                                 check_duplicate=True, static_username=username)
+            
+            if session_status['duplicate']:
+                self._user_sessions_lock.acquire()
+                self._user_sessions[wake_session_id]['duplicate_username'] = username
+                self._user_sessions_lock.release()
+                return '{"success": true, "duplicate": true, "msg": "A previous session already exists with the username you specified. Do you wish to overwritte it ?"}'
+            
+            self._user_sessions_lock.acquire()
+            self._user_sessions[wake_session_id]['username'] = username
+            self._user_sessions_lock.release()
+            return '{"success": true, "duplicate": false}'
+        
+        return '{"success": false, "duplicate": false, "msg": "Wrong username or password"}'
+    
+    @cherrypy.expose
+    def confirmDuplicate(self, _dc=None):
+        '''
+        Confirm overwrite of a duplicate session
+        '''
+        # Check session status & get session cookie
+        wake_session_id, _ = self._checkSession(cherrypy.request)
+        _, _ = self._checkSession(cherrypy.request, no_standard_checks=True, check_duplicate=True, 
+                                  static_username=self._user_sessions[wake_session_id]['duplicate_username'], set_duplicate=True)
+        
+        self._user_sessions_lock.acquire()
+        self._user_sessions[wake_session_id]['username'] = self._user_sessions[wake_session_id]['duplicate_username']
+        del self._user_sessions[wake_session_id]['duplicate_username']
+        self._user_sessions_lock.release()
+        
+        print self._user_sessions
+        return '{"success": true}'
+        
 
 class WakeGui(multiprocessing.Process):
     '''
-        UI starter
+    UI starter
     '''
     def __init__(self, group=None, target=None, name=None, args=(), kwargs=None, verbose=None):
         '''
-            Set needed variables
+        Set needed variables
         '''
         multiprocessing.Process.__init__(self, group=group, target=target, name=name)
         self._PROJECT_DIR = args[0]
@@ -97,13 +319,13 @@ class WakeGui(multiprocessing.Process):
     
     def run(self):
         '''
-            Create, configure and start UI web server & application
+        Create, configure and start UI web server & application
         '''
-        #Setup GUI database and connector
+        # Setup GUI database and connector
         setupGuiDatabase(self._PROJECT_DIR)
         db_connector = GuiDatabaseConnector(self._PROJECT_DIR)
         
-        #Setup web app. configuration
+        # Setup web app. configuration
         appconf = { 
             '/': {'tools.staticdir.root': self._BASE_DIR},
             '/app': {'tools.staticdir.on': True, 'tools.staticdir.dir': 'app'},
@@ -120,17 +342,17 @@ class WakeGui(multiprocessing.Process):
             'engine.autoreload.on': False
         }
         
-        #Upload configuration
+        # Upload configuration
         cherrypy.config.update(siteconf)
         
-        #Use HTTPS
+        # Use HTTPS
         cherrypy.server.ssl_certificate = './gui/conf/ssl/server.crt'
         cherrypy.server.ssl_private_key = './gui/conf/ssl/server.key'
         
-        #Create server and application
+        # Create server and application
         cherrypy.tree.mount(WakeGuiApp(self._BASE_DIR, self._DEBUG, db_connector), '/', appconf)
         
-        #Start CherryPy server
+        # Start CherryPy server
         cherrypy.server.start() 
         cherrypy.engine.start()
         cherrypy.engine.block()
