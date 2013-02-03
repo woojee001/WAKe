@@ -30,6 +30,7 @@ class GuiDatabaseConnector():
         
         #Execute instruction
         db_cursor.execute(request, attributes)
+        db_connection.commit()
         
         #Get result
         result = db_cursor.fetchall()

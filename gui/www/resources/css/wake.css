@@ -13,6 +13,29 @@
 	color: #FFFFFF
 }
 
+#header-cell-logged-no-border {
+    padding-left: 10px;
+    padding-right: 10px;
+    font-size: 12px;
+    font-weight: bold;
+    color: #FFFFFF;
+}
+
+#header-cell-logged {
+    padding-left: 10px;
+    padding-right: 10px;
+    font-size: 12px;
+    font-weight: bold;
+    text-align: center;
+    color: #FFFFFF;
+    border-left: solid 1px #4D79FF;
+}
+
+#header-cell-logged a {
+    color: #FFFFFF;
+    text-decoration: none;
+}
+
 #header-pgm-name {
 	color: #4D79FF;
 	font-size: 14px;

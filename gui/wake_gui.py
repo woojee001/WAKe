@@ -2,6 +2,7 @@
 Web Application Keeper (WAKe) GUI
 Powers up a GUI for administration and configuration purpose
 '''
+from cherrypy._cperror import HTTPRedirect
 __author__ = 'Aurelien CROZATIER'
 __version__ = 0.1
 
@@ -246,6 +247,18 @@ class WakeGuiApp():
         '''
         Return HTML content for the page "Header" zone
         '''
+        # Get session status & session cookie
+        wake_session_id, session_status = self._checkSession(cherrypy.request)
+        
+        # Check what header we have to return
+        if session_status['authenticated']:
+            try:
+                html = u''.join(open(join(self._BASE_DIR, 'resources', 'html', 'authenticated_header.html')).readlines())
+            except:
+                html = 'NO HEADER'
+            return '{{"success": true, "html": {0:s}}}'.format(json.dumps(html.replace('~~USERNAME~~',
+                                                                                       self._user_sessions[wake_session_id]['username'])))
+        
         try:
             html = u''.join(open(join(self._BASE_DIR, 'resources', 'html', 'unauthenticated_header.html')).readlines())
         except:
@@ -265,8 +278,7 @@ class WakeGuiApp():
             return '{"success": false}'
         
         connected = self._db_connector.execute(request='''SELECT changed FROM users WHERE username=? AND password=?''',
-                                               attributes=(username, hashlib.sha512(password).hexdigest(),)
-                                               )
+                                               attributes=(username, hashlib.sha512(password).hexdigest(),))
         # Return connect result
         if connected:
             # Re-check session status (for duplicate)
@@ -281,6 +293,7 @@ class WakeGuiApp():
                 self._user_sessions_lock.release()
                 return '{"success": true, "duplicate": true, "msg": "An older session with the username you specified already exists. Do you wish to overwritte it ?"}'
             
+            self._user_sessions[wake_session_id]['expiration_time'] = time.time() + self._SESSION_DURATION
             self._user_sessions_lock.acquire()
             self._user_sessions[wake_session_id]['username'] = username
             self._user_sessions_lock.release()
@@ -302,14 +315,33 @@ class WakeGuiApp():
         
         # Set duplicate
         _, _ = self._checkSession(cherrypy.request, no_standard_checks=True, check_duplicate=True, 
-                                  static_username=self._user_sessions[wake_session_id]['duplicate_username'], set_duplicate=True)
+                                  static_username=self._user_sessions[wake_session_id]['duplicate_username'],
+                                  set_duplicate=True)
         
         self._user_sessions_lock.acquire()
         self._user_sessions[wake_session_id]['username'] = self._user_sessions[wake_session_id]['duplicate_username']
+        self._user_sessions[wake_session_id]['expiration_time'] = time.time() + self._SESSION_DURATION
         del self._user_sessions[wake_session_id]['duplicate_username']
         self._user_sessions_lock.release()
         
         return '{"success": true}'
+    
+    @cherrypy.expose
+    def logout(self):
+        '''
+        Destroy active session
+        '''
+        # Get session status & session cookie
+        wake_session_id, _ = self._checkSession(cherrypy.request)
+        
+        #Destroy session
+        try:
+            del self._user_sessions[wake_session_id]
+        except:
+            pass
+        
+        raise HTTPRedirect('/', 302)
+        
     
     @cherrypy.expose
     def changeDefaultPassword(self, password1, password2):
@@ -318,7 +350,6 @@ class WakeGuiApp():
         '''
         # Get session status & session cookie
         wake_session_id, session_status = self._checkSession(cherrypy.request)
-        print session_status
         
         # Check status
         if session_status['duplicate'] or session_status['hijacked'] or not session_status['exists']:
@@ -330,6 +361,9 @@ class WakeGuiApp():
         
         # Change password
         self._user_sessions[wake_session_id]['pwd_changed'] = 1
+        _ = self._db_connector.execute(request='''UPDATE users SET changed=1, password=? WHERE username=?''',
+                                       attributes=(hashlib.sha512(password1).hexdigest(),
+                                                   self._user_sessions[wake_session_id]['username'],))
         
         return '{"success": true}'
             
