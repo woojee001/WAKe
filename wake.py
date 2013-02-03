@@ -2,11 +2,13 @@
 Web Application Keeper (WAKe)
 Blacklist/whitelist Web Application Firewall (WAF) 
 '''
+from macpath import join
 
 __author__ = 'Aurelien CROZATIER'
 __version__ = 0.1
 
 from argparse import ArgumentParser
+from os import mkdir
 from os.path import dirname, abspath
 from sys import argv
 from threading import Event
@@ -39,6 +41,12 @@ if __name__ == '__main__':
     
     # Get the path of the project directory
     PROJECT_DIR = dirname(abspath(__file__))
+    
+    # Create database files directory
+    try:
+        mkdir(join(PROJECT_DIR, 'database', 'db_files'))
+    except:
+        pass  # Repository exists
     
     # Start GUI
     if not arguments.no_gui:
