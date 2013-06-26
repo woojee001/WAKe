@@ -83,7 +83,7 @@ class WakeGuiApp():
         self._user_sessions_lock.acquire()
         self._user_sessions[value] = {
                                         'control_token': control,
-                                        'expiration_time':-1,
+                                        'expiration_time': int(-1),
                                         'username': None,
                                         'creation_time': time.time(),
                                         'website_id': None
@@ -133,6 +133,7 @@ class WakeGuiApp():
             # Clean sessions list
             sessions_to_del = []
             self._user_sessions_lock.acquire()
+
             for session_id in self._user_sessions:
                 if 'expiration_time' in self._user_sessions[session_id] \
                         and self._user_sessions[session_id]['expiration_time'] > 0:
@@ -140,8 +141,10 @@ class WakeGuiApp():
                         sessions_to_del.append(session_id)
                 elif time.time() > self._user_sessions[session_id]['creation_time'] + self._UNAUTH_SESSION_DURATION:
                     sessions_to_del.append(session_id)
+
             for session_id in sessions_to_del:
                 del self._user_sessions[session_id]
+
             self._user_sessions_lock.release()
 
             # Check if cookie was tampered/hijacked
@@ -156,6 +159,7 @@ class WakeGuiApp():
         if check_duplicate:
             # Specific check for "connect" action
             self._user_sessions_lock.acquire()
+
             for session_id in self._user_sessions:
                 if session_id != cookie.value[0:32]:
                     if static_username == self._user_sessions[session_id]['username']:
@@ -165,16 +169,20 @@ class WakeGuiApp():
                             self._user_sessions[session_id]['duplicate'] = 1
                         self._user_sessions_lock.release()
                         return status
+
             self._user_sessions_lock.release()
 
         elif self._user_sessions[cookie.value[0:32]]['username']:
             # Standard check if username exists
             self._user_sessions_lock.acquire()
+
             if 'duplicate' in self._user_sessions[cookie.value[0:32]]:
                 status['duplicate'] = True
                 self._user_sessions_lock.release()
                 return status
+
             self._user_sessions_lock.release()
+
             if self._user_sessions[cookie.value[0:32]]['username']:
                 status['authenticated'] = True
 
