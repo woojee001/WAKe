@@ -45,10 +45,10 @@
     background: #000000;
     padding-top: 8px;
     padding-right: 10px;
-    font-size: 9px;
+    font-size: 11px;
     color: #FFFFFF;
     height: 30px;
-    float: right;
+    width: 100%;
 }
 
 #footer a {
@@ -58,6 +58,10 @@
 #logo {
     padding: 10px;
     height: 100%;
+}
+
+#powered-by {
+    float: right;
 }
 
 .login {

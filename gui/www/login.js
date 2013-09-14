@@ -1,12 +1,15 @@
+Ext.Loader.setConfig({
+    enabled : true,
+});
+
 Ext.application({
+
     name: 'WAKe',
+    
     appFolder: 'app',
-    requires: ['Ext.container.Viewport'],
     
     controllers: [
-    	'Header',
-    	'Footer',
-    	'Authentication',
+    	'Authentication'
     ],
 
     launch: function() {
@@ -14,16 +17,36 @@ Ext.application({
             layout: 'border',
             items: [
             	{
-			        xtype: 'wake-header',
-			        id: 'wake-header'
+			        xtype: 'box',
+			        id: 'wake-header',
+			        region: 'north',
+			        html: [
+			            '<table id="header-table">',
+                            '<tr>',
+                                '<td id="header-cell">',
+                                    '<span id="header-pgm-name">Web Application Keeper</span>',
+                                    ' - Open source Web Application Firewall',
+                                '</td>',
+                            '</tr>',
+                        '</table>'
+                    ]
 			    },
             	{
                     xtype: 'wake-authentication',
-                    id: 'wake-authentication'
+                    id: 'wake-authentication',
+                    region: 'center'
                 },
                 {
-                    xtype: 'wake-footer',
-                    id: 'wake-footer'
+                    xtype: 'box',
+                    id: 'wake-footer',
+                    region: 'south',
+                    html: [
+                        '<div id="footer">',
+                            '<div id="powered-by">',
+                                'Powered by <a href="https://github.com/acrozatier">Aur&eacute;lien CROZATIER</a>',
+                            '</div>',
+                        '</div>'
+                    ]
                 },
             ]
         });

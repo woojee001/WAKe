@@ -2,14 +2,13 @@
 Web Application Keeper (WAKe)
 Blacklist/whitelist Web Application Firewall (WAF)
 '''
-from macpath import join
 
 __author__ = 'Aurelien CROZATIER'
 __version__ = 0.1
 
 from argparse import ArgumentParser
 from os import mkdir
-from os.path import dirname, abspath
+from os.path import dirname, abspath, join
 from sys import argv
 from threading import Event
 
@@ -25,10 +24,13 @@ def parseArgs(arguments):
 
     parser.add_argument('-d', '--debug', action='store_true',
                         help='Activate debug mode (relevant only for development)')
+
     parser.add_argument('--no-core', action='store_true', dest='no_core',
                         help='Do not start the WAKe core (offline configuration)')
+
     parser.add_argument('--no-gui', action='store_true', dest='no_gui',
                         help='Do not start the GUI')
+
     parser.add_argument('-p', '--port', type=int, dest='ui_port', action='store', default=3333,
                         help='TCP port on which the GUI will be available (default: 3333')
 

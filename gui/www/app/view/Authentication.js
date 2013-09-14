@@ -77,9 +77,9 @@ Ext.define('WAKe.view.Authentication', {
     extend: 'Ext.window.Window',
     alias: 'widget.wake-authentication',
     
-    region: 'center',
     height: 170,
     width: 450,
+    
     autoShow: true,
     closable: false,
     resizable: false,
