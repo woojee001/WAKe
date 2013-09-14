@@ -6,7 +6,7 @@ Ext.application({
 
     name: 'WAKe',
     
-    appFolder: 'app',
+    appFolder: '/app',
     
     controllers: [
     	'Authentication'

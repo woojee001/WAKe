@@ -15,6 +15,7 @@ import wake_gui_session as wake
 
 from database.setup_db import setupGuiDatabase
 from database.db_connector import GuiDatabaseConnector
+from lib.pyratemp import pyratemp
 
 cherrypy.lib.sessions.WakeSession = wake.WakeSession
 
@@ -42,11 +43,33 @@ class WakeGuiApp():
         '''
         WAKe root page
         '''
-        file_to_load = join(self._BASE_DIR, 'login.html')
+        # Initialize local variables
+        messages = []
+
+        # Get session status
+        session_status = cherrypy.session.getSessionStatus()
+        print session_status
+
+        # Check if session is valid
+        if not session_status['valid']:
+
+            # Store what append
+            messages.append(session_status['reason'])
+
+            # Generate new session
+            cherrypy.session.delete()
+            cherrypy.session.regenerate()
+
+        # Set what file to open
+        if not session_status['authenticated']:
+            file_to_load = join(self._BASE_DIR, 'login.html')
+        else:
+            file_to_load = join(self._BASE_DIR, 'index.html')
 
         # Display selected page
         try:
-            html = ''.join(open(file_to_load, 'r').readlines())
+            html_template = pyratemp.Template(filename=file_to_load)
+            html = html_template(messages_meta=messages)
         except:
             html = 'ERROR LOADING PAGE CONTENT'
         return html
@@ -98,7 +121,8 @@ class WakeGui(multiprocessing.Process):
             'tools.sessions.on': True,
             'tools.sessions.storage_type': 'wake',
             'tools.sessions.name': 'WAKe_SESSION_ID',
-            'tools.sessions.timeout': 30
+            'tools.sessions.timeout': 0.5,
+            'tools.sessions.persistent': False
         }
 
         # Upload configuration
